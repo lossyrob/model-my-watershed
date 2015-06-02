@@ -77,6 +77,7 @@ object MMWBuild extends Build {
     Project("mmw", file("."))
       .aggregate(processing, services)
 
+
   // Project: processing
 
   lazy val processing: Project =
