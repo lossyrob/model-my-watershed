@@ -24,7 +24,7 @@ object MMWBuild extends Build {
     "Local Maven Repository"  at "file://" + Path.userHome.absolutePath + "/.m2/repository",
     "Typesafe Repo"           at "http://repo.typesafe.com/typesafe/releases/",
     "spray repo"              at "http://repo.spray.io/",
-    "snapshots"     at "https://oss.sonatype.org/content/repositories/snapshots"
+    "snapshots"               at "https://oss.sonatype.org/content/repositories/snapshots"
   )
 
   // Default settings
@@ -76,7 +76,58 @@ object MMWBuild extends Build {
   // Project: root
   lazy val root =
     Project("mmw", file("."))
-      .aggregate(processing, services)
+      .aggregate(core, ingest, processing, services)
+
+
+  // Project: core
+
+  lazy val core: Project =
+    Project("core", file("core"))
+      .settings(coreSettings:_*)
+
+  lazy val coreSettings =
+    Seq(
+      organization := "com.azavea.mmw-core",
+      name := "mmw-core",
+
+      scalaVersion := Version.scala,
+
+      libraryDependencies ++= Seq(
+        "com.azavea.geotrellis" %% "geotrellis-raster" % Version.geotrellis,
+        "org.scalatest" %%  "scalatest" % "2.2.0" % "test"
+      )
+    ) ++
+  defaultAssemblySettings
+
+
+  // Project: ingest
+
+  lazy val ingest: Project =
+    Project("ingest", file("ingest"))
+      .settings(ingestSettings:_*)
+      .dependsOn(core)
+
+  lazy val ingestSettings =
+    Seq(
+      organization := "com.azavea.mmw-ingest",
+      name := "mmw-ingest",
+
+      scalaVersion := Version.scala,
+
+      fork := true,
+      // raise memory limits here if necessary
+      javaOptions += "-Xmx2G",
+      javaOptions += "-Djava.library.path=/usr/local/lib",
+
+      libraryDependencies ++= Seq(
+        "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellis,
+        "org.apache.spark" %% "spark-core" % Version.spark % "provided",
+        "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
+
+        "org.scalatest" %%  "scalatest" % "2.2.0" % "test"
+      )
+    ) ++
+  defaultAssemblySettings
 
 
   // Project: processing
@@ -84,6 +135,7 @@ object MMWBuild extends Build {
   lazy val processing: Project =
     Project("processing", file("processing"))
       .settings(processingSettings:_*)
+      .dependsOn(core)
 
   lazy val processingSettings =
     Seq(
@@ -112,7 +164,7 @@ object MMWBuild extends Build {
   lazy val services: Project =
     Project("services", file("services"))
       .settings(servicesSettings:_*)
-      .dependsOn(processing)
+      .dependsOn(processing, core)
 
   lazy val servicesSettings =
     Seq(

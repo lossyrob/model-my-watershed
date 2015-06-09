@@ -1,8 +1,24 @@
-package com.azavea.mmw
+package com.azavea.mmw.ingest
+
+import com.azavea.mmw._
 
 object Constants {
+  def wordToSoilType(w: Int): Option[SoilType] =
+    wordSoilMap.get(w).map(resolveSoilType(_))
+
+  private def resolveSoilType(s: String): SoilType =
+    s match {
+      case "A" => SoilTypeA
+      case "B" => SoilTypeB
+      case "C" => SoilTypeC
+      case "D" => SoilTypeD
+      case "A/D" => SoilTypeA
+      case "B/D" => SoilTypeB
+      case "C/D" => SoilTypeC
+  }
+
   /** maps a 32-bit word to a soil type */
-  val wordToSoil = 
+  private val wordSoilMap =
     Map(
       1603364 -> "A",
       1603365 -> "A/D",

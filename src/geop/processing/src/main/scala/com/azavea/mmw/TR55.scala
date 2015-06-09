@@ -3,6 +3,7 @@ package com.azavea.mmw
 import geotrellis.vector._
 import geotrellis.vector.io.json._
 import geotrellis.raster._
+import geotrellis.raster.op.local._
 import geotrellis.raster.histogram._
 import geotrellis.raster.rasterize.{Rasterizer, Callback}
 import geotrellis.spark._
@@ -13,29 +14,36 @@ import scala.collection.mutable
 import spire.syntax.cfor._
 
 object TR55 {
-  def countCombinations(geom: Geometry, rasterExtent: RasterExtent, nlcdTile: Tile, soilTile: Tile): Map[(Int, String), Int] = {
-    val result = mutable.Map[(Int, String), Int]()
+  private def emptyCombinationTile =
+    IntArrayTile(Array.ofDim[Int](LandCover.COUNT * SoilType.COUNT), LandCover.COUNT, SoilType.COUNT)
+
+  private def zeroCombinationTile =
+    IntConstantTile(0, LandCover.COUNT, SoilType.COUNT)
+
+  private def countCombinations(geom: Geometry, rasterExtent: RasterExtent, nlcdTile: Tile, soilTile: Tile): Tile = {
+    val result = emptyCombinationTile
     Rasterizer.foreachCellByGeometry(geom, rasterExtent)(
       new Callback {
         def apply(col: Int, row: Int): Unit = {
-          Constants.wordToSoil.get(soilTile.get(col, row)) match {
-            case Some(soilType) =>
-              val c = (nlcdTile.get(col, row), soilType)
-              result(c) = result.getOrElseUpdate(c, 0) + 1
-            case None =>
-              // Unknown soil type. TODO: How do we handle this case?
+          val classification = nlcdTile.get(col, row)
+          val soilType = soilTile.get(col, row)
+
+          // NOTE: We are not currently counting if there is NODATA in either value.
+          if(isData(classification) && isData(soilType)) {
+            val c = result.get(classification, soilType)
+            result.set(classification, soilType, c + 1)
           }
         }
       }
     )
-    result.toMap
+    result
   }
 
   /** Returns a map of values to counts */
-  def combinations(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], polygon: Polygon): Map[(Int, String), Int] = {
+  def combinations(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], polygon: Polygon): Map[(Int, Int), Int] = {
     val mapTransform = nlcd.metaData.mapTransform
     val nlcdAndSoil = nlcd.join(soil)
-    val combinationCounts: RDD[Map[(Int, String), Int]] = 
+    val combinationCounts: RDD[Tile] = 
       nlcdAndSoil
         .map { case (key, (nlcdTile, soilTile)) =>
           val extent = mapTransform(key) // transform spatial key to map extent
@@ -44,16 +52,24 @@ object TR55 {
 
           (polygon & extent).toGeometry match {
             case Some(geom) => countCombinations(geom, rasterExtent, nlcdTile, soilTile)
-            case None => Map()
+            case None => zeroCombinationTile
           }
         }
 
-    combinationCounts
-      .reduce { (m1, m2) =>
-        (m1.toSeq ++ m2.toSeq)
-          .groupBy(_._1)
-          .map { case (key, counts) => (key, counts.map(_._2).sum) }
-          .toMap
-       }
+    val countTile =
+      combinationCounts
+        .mapPartitions { part =>
+          Seq(part.toSeq.localAdd).iterator
+         }
+        .reduce(_ + _)
+
+    val result = mutable.Map[(Int, Int), Int]()
+    countTile.foreach { (col, row, z) =>
+      if(z != 0) {
+        result((col, row)) = z
+      }
+    }
+
+    result.toMap
   }
 }
