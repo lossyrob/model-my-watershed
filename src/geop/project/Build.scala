@@ -23,7 +23,8 @@ object MMWBuild extends Build {
   val resolutionRepos = Seq(
     "Local Maven Repository"  at "file://" + Path.userHome.absolutePath + "/.m2/repository",
     "Typesafe Repo"           at "http://repo.typesafe.com/typesafe/releases/",
-    "spray repo"              at "http://repo.spray.io/"
+    "spray repo"              at "http://repo.spray.io/",
+    "snapshots"     at "https://oss.sonatype.org/content/repositories/snapshots"
   )
 
   // Default settings

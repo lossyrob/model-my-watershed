@@ -1,6 +1,6 @@
 package com.azavea.mmw
 
-import geotrellis.raster.io.geotiff.reader._
+import geotrellis.raster.io.geotiff._
 import geotrellis.raster._
 import geotrellis.raster.reproject._
 import geotrellis.vector._
@@ -17,13 +17,11 @@ object TestFiles {
   val dataPath = "src/test/data"
 
   def getRaster(p: String): Raster = {
-    val geoTiff = GeoTiffReader.read(p)
-    val crs = geoTiff.metaData.crs
-    val extent = geoTiff.metaData.extent
+    val ProjectedRaster(tile, extent, crs) = SingleBandGeoTiff(p).projectedRaster
     val reprojectedExtent = extent.reproject(crs, LatLng)
-    val tile = geoTiff.bands.head.tile.reproject(extent, crs, LatLng).resample(512, 512)
+    val reprojectedTile = tile.reproject(extent, crs, LatLng).resample(512, 512)
 
-    Raster(tile, reprojectedExtent)
+    Raster(reprojectedTile, reprojectedExtent)
   }
 
   def makeRDD(p: String)(implicit sc: SparkContext): RasterRDD[SpatialKey] = {

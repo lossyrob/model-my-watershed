@@ -42,14 +42,15 @@ object Utility {
     assert(n.cols == s.cols)
     assert(n.rows == s.rows)
 
-    val m = mutable.Map[(Int, Option[String]), Int]()
+    val m = mutable.Map[(Int, String), Int]()
     cfor(0)(_ < n.rows, _ + 1) { row =>
       cfor(0)(_ < n.cols, _ + 1) { col =>
-        val soilType = TR55.wordToSoil.get(s.get(col,row))
-        if (soilType != None) {
-          val c = (n.get(col, row), soilType)
-          if(!m.contains(c)) { m(c) = 0 }
-          m(c) += 1
+        Constants.wordToSoil.get(s.get(col,row)) match {
+          case Some(soilType) =>
+            val c = (n.get(col, row), soilType)
+            if(!m.contains(c)) { m(c) = 0 }
+            m(c) += 1
+          case None => 
         }
       }
     }
